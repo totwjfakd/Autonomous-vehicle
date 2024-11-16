@@ -4,20 +4,24 @@ import cv2
 import numpy as np
 from math import floor
 from std_msgs.msg import Float64
-from sensor_msgs.msg import LaserScan
 from sensor_msgs.msg import CompressedImage
 
 def degTorad(deg):
     rad_diff = 0.5304
     rad = deg * (3.14/180)
     return rad + rad_diff
-
 def bird_eye_view_scale(image):
-    src_points = np.float32([[55, 135], [265, 135], [10, 225], [310, 225]])  
-    dst_points = np.float32([[0, 0], [320, 0], [0, 240], [320, 240]])
+    # Adjust src_points for 640x480 resolution
+    src_points = np.float32([[110, 270], [530, 270], [50, 450], [590, 450]])
+    dst_points = np.float32([[0, 0], [640, 0], [0, 480], [640, 480]])
+    
+    # Compute homography matrix
     homography_matrix = cv2.getPerspectiveTransform(src_points, dst_points)
-    bird_eye_image = cv2.warpPerspective(image, homography_matrix, (320, 240))
+    
+    # Apply perspective transform
+    bird_eye_image = cv2.warpPerspective(image, homography_matrix, (640, 480))
     return bird_eye_image
+
 
 def callback_camera(image):
     speed_pub = rospy.Publisher('/commands/motor/speed', Float64, queue_size=1)
@@ -46,7 +50,7 @@ def callback_camera(image):
     blank = np.zeros((image.shape[0], image.shape[1]), dtype=np.uint8)
     
     # find center of lane
-    y_lane_pos = 90
+    y_lane_pos = 350
 
     left_lane = 0
     right_lane = bird_eye.shape[1]
@@ -77,6 +81,8 @@ def callback_camera(image):
 
     cv2.drawContours(blank, contours, -1, 255, 1)
     cv2.imshow('contour', blank)
+    cv2.imshow('filter', combine)
+    cv2.imshow('Bird Eye View', bird_eye)  # Add this line to display bird_eye image
     cv2.waitKey(1) 
 
 if __name__ == '__main__':
@@ -107,7 +113,7 @@ if __name__ == '__main__':
     try:
         rospy.init_node("find_lane")
         global pid
-        pid = PID(0.6, 0.0001, 0.01, 30, -30)
+        pid = PID(0.2, 0.0001, 0.2, 30, -30)
         camera_sub = rospy.Subscriber("/image_jpeg/compressed", CompressedImage, callback_camera)
         rospy.spin()
     except rospy.ROSInterruptException:
